@@ -1,0 +1,213 @@
+## DS 785: Capstone Project
+
+## Daniel Clements
+## University of Wisconsin-Eau Claire
+
+## Presented to Dr. Tracy Bibelnieks, University of Wisconsin-Superior.
+
+## This code uses simple linear regression and statistical testing to show how the responses variable, population, 
+## tracks annually in Brazil and Mexico from 1960-2022. Data from the World Bank is used.
+## Paired-t and other statistical testing is performed to determine whether parameters tested are of
+## significance.
+
+---
+
+# Load libraries.
+
+```{r}
+library( ggformula )
+library( glmnet )
+library( MASS )
+library( ISLR )
+library( dplyr )
+```
+
+## Import data files.
+
+```{r}
+# Set the working directory.
+setwd( "D:/##Backup/Academics/UW-EC/DS Courses/785/Capstone/Data" ) 
+
+# Import Our World in Data COVID-19 data.
+covid_dth <- read.csv( "OWID/owid-covid-data.csv")
+
+# Import World Bank Net Migration, per Annum Data.
+WB_pop_chg <- read.csv( "#R/WB/WB_World Pop Data_DC_R.csv" )
+WB_pop_chg_v2 <- read.csv( "#R/WB/WB_World Pop Data_DC_R_v2.csv" )
+
+# Import World Bank Population Change, as a percentage, Data.
+WB_pop_chg_v3 <- read.csv( "#R/WB/WB_World Pop Data_DC_R_v3.csv" )
+WB_pop_chg_v4 <- read.csv( "#R/WB/WB_World Pop Data_DC_R_v4.csv" )
+WB_pop_chg_v5 <- read.csv( "#R/WB/WB_World Pop Data_DC_R_v5.csv" )
+WB_pop_chg_v6 <- read.csv( "#R/WB/WB_World Pop Data_DC_R_v6.csv" )
+
+# Import World Bank Net Population Change, per Annum (2006-21) Data. v8 represents
+# years as a binary succession, from 2006 to 2021.
+WB_pop_chg_v7 <- read.csv( "#R/WB/WB_World Pop Data_DC_R_v7.csv" )
+WB_pop_chg_v8 <- read.csv( "#R/WB/WB_World Pop Data_DC_R_v8.csv" )
+
+```
+
+## Clean the data.
+
+```{r}
+## WB Data
+
+# Exclude all nations from the data set, except Brazil and Mexico.
+WB_pop_chg_BRA <- subset( WB_pop_chg, Country_Code == "BRA" )
+WB_pop_chg_MEX <- subset( WB_pop_chg, Country_Code == "MEX" )
+
+# Remove the indicator name and code columns from each subset.
+WB_pop_chg_BRA <- WB_pop_chg_BRA[ , -3:-4 ]
+WB_pop_chg_MEX <- WB_pop_chg_MEX[ , -3:-4 ]
+
+# Merge the two WB subsets.
+WB_pop_chg_2 <- rbind( WB_pop_chg_BRA, WB_pop_chg_MEX )
+
+# Transpose the subset.
+WB_pop_chg_2 <- t( WB_pop_chg_2 )
+
+# Separate the selected pre- and post-COVID population change, as a percentage, values for Brazil and Mexico.
+pop_chg_pct_BRA_18_19 <- WB_pop_chg_v5[ -(3:4), ]
+pop_chg_pct_BRA_20_21 <- WB_pop_chg_v5[ -(1:2), ]
+pop_chg_pct_MEX_18_19 <- WB_pop_chg_v6[ -(3:4), ]
+pop_chg_pct_MEX_18_19 <- WB_pop_chg_v6[ -(1:2), ]
+
+
+## OWID Data
+
+# Remove entries for all nations, except Brazil and Mexico.
+covid_dth_BRA <- subset( covid_dth, iso_code == "BRA" )
+covid_dth_MEX <- subset( covid_dth, iso_code == "MEX" )
+
+# COVID-19 death data was first recorded on March 19, 2020 in Brazil and on 
+# March 20, 2020 in Mexico. Remove all zeroed entries beforehand.
+covid_dth_BRA_2 <- filter( covid_dth_BRA, date >= "2020-03-19" )
+covid_dth_MEX_2 <- filter( covid_dth_MEX, date >= "2020-03-20" )
+
+# COVID-19 deaths were finally recorded on a daily basis in Brazil on March 06, 
+# 2023 and in Mexico on April 02, 2023. 2023 data is irrelevant to the study. 
+# Therefore, remove all 2023 entries.
+covid_dth_BRA_3 <- filter( covid_dth_BRA_2, date < "2023-01-01" )
+covid_dth_MEX_3 <- filter( covid_dth_MEX_2, date < "2023-01-01" )
+
+# Merge the two OWID subsets.
+covid_dth_2 <- rbind( covid_dth_BRA_3, covid_dth_MEX_3 )
+
+```
+
+
+## Develop simple linear regression models.
+
+```{r}
+## WB Data
+
+# Create a simple linear regression model comparing Brazilian and Mexican net migration data.
+WB_net_mig_lin_mod <- lm( BRA ~ MEX, data = WB_pop_chg_v2 )
+
+# Create a simple linear regression model comparing SE Africa, versus Mexican and Brazilian percentage population change from 2005 - 2013, just before AIA is assumed to experience accelerating growth.
+WB_pct_chg_lin_mod_v3 <- lm( SE.AFRICA ~ BRA + MEX, data = WB_pop_chg_v3 )
+
+# Create a simple linear regression model comparing SE Africa, versus Mexican and Brazilian percentage population change from 2014-21, when AIA is assumed to experience accelerating growth.
+WB_pct_chg_lin_mod_v4 <- lm( SE.AFRICA ~ BRA + MEX, data = WB_pop_chg_v4 )
+
+```
+
+
+## Compute the population and sample variances, and standard deviations to understand how COVID-19 death fluctuate throughout each calendar year between 2020-22.
+
+```{r}
+## OWID Data
+
+# Determine the length of each year, per nation.
+len_BRA_yr <- summarize( covid_dth_BRA_3, Y2020 = sum( grepl( "2020" , date ) ), 
+                           Y2021 = sum( grepl( "2021" , date ) ),
+                           Y2022 = sum( grepl( "2022" , date ) )
+                           
+                           )
+
+len_MEX_yr <- summarize( covid_dth_MEX_3, Y2020 = sum( grepl( "2020" , date ) ), 
+                           Y2021 = sum( grepl( "2021" , date ) ),
+                           Y2022 = sum( grepl( "2022" , date ) )
+                           
+                           )
+
+# Compute the sample variance of each nation.
+spl_vari_BRA <- var( covid_dth_BRA_3[["new_deaths"]], na.rm = TRUE )
+spl_vari_MEX <- var( covid_dth_MEX_3[["new_deaths"]], na.rm = TRUE )
+
+# Compute the population variance of Brazil between 2020-22.
+pop_vari_BRA <- spl_vari_BRA * ( ( ( len_BRA_yr$Y2020 + len_BRA_yr$Y2021 + 
+                                     len_BRA_yr$Y2022 ) - 1 ) / ( len_BRA_yr$Y2020 
+                                     + len_BRA_yr$Y2021 +len_BRA_yr$Y2022 ) )
+
+# Compute the population variance of Brazil between 2020-22.
+pop_vari_MEX <- spl_vari_MEX * ( ( ( len_MEX_yr$Y2020 + len_MEX_yr$Y2021 + 
+                                     len_MEX_yr$Y2022 ) - 1 ) / ( len_MEX_yr$Y2020 
+                                     + len_MEX_yr$Y2021 +len_MEX_yr$Y2022 ) )
+
+# Compute the standard deviation of daily death tolls in each nation.
+sd_BRA = sqrt( spl_vari_BRA )
+sd_MEX = sqrt( spl_vari_MEX )
+
+# Compute the mean of daily death totals in each nation.
+dth_avg_BRA = mean( covid_dth_BRA_3$new_deaths )
+dth_avg_MEX = mean( covid_dth_MEX_3$new_deaths )
+
+```
+
+## Perform a two-sample t-test for population change, as a percentage, in Brazil and Mexico. Compare the 2018-19 and 2020-21 periods. 
+
+```{r}
+# Two sample t-test for Brazil, 2018-19 and 2020-21.
+two_t_BRA <- t.test( WB_pop_chg_v5$BRA, WB_pop_chg_v6$BRA, alternative = "two.sided", var.equal = FALSE )
+
+# Two sample t-test for Mexico, 2018-19 and 2020-21.
+two_t_MEX <- t.test( WB_pop_chg_v5$MEX, WB_pop_chg_v6$MEX, alternative = "two.sided", var.equal = FALSE )
+
+```
+
+## Create a model to predict future net population change in Brazil, with AIA.
+
+```{r}
+# Net population change in Brazil and Mexico, with AIA.
+fut_pop_lin_mod_with_AI_BRA <- lm( BRA ~ Year, data = WB_pop_chg_v8 )
+
+
+
+```
+
+## Display the results.
+
+```{r}
+# WB Percentage Population Change, SE Africa vs. Brazil and Mexico (2006-13), linear model summary.
+summary( WB_pct_chg_lin_mod_v3 )
+
+# Compute its RMSE.
+sqrt( mean( WB_pct_chg_lin_mod_v3$residuals^2 ) )
+
+
+# WB Percentage Population Change, SE Africa vs. Brazil and Mexico (2014-21), linear model summary.
+summary( WB_pct_chg_lin_mod_v4 )
+
+# Compute its RMSE.
+sqrt( mean( WB_pct_chg_lin_mod_v4$residuals^2 ) )
+
+
+# WB Net Migration Change, Brazil vs. Mexico, linear model summary.
+summary( WB_net_mig_lin_mod )
+
+# Pre- versus post-pandemic percentage population change, two-sample t-test, Brazil.
+two_t_BRA
+
+# Pre- versus post-pandemic percentage population change, two-sample t-test, Mexico.
+two_t_MEX
+
+# Net population change model in Brazil, with AIA.
+summary( fut_pop_lin_mod_with_AI_BRA )
+plot( WB_pop_chg_v8$Year, WB_pop_chg_v8$BRA, type = "b", pch = 19, 
+      col = "red", xlab = "Years Elapsed Since 2006", ylab = "Net Population Change (person)")
+
+```
+
+

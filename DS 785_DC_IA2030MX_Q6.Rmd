@@ -1,0 +1,74 @@
+## DS 785: Capstone Project
+
+## Daniel Clements
+## University of Wisconsin-Eau Claire
+
+## Presented to Dr. Tracy Bibelnieks, University of Wisconsin-Superior.
+
+## This code uses uses a two-way ANOVA test to evaluate if there are significant differences in responses to
+## three questions posed in an IA2030MX survey on artificial intelligence in Mexico. 
+
+---
+
+# Load libraries.
+
+```{r}
+library( dplyr )
+library( AICcmodavg )
+library( ordinal )
+
+```
+
+
+## Import data files.
+
+```{r}
+# Set the working directory.
+setwd( "D:/##Backup/Academics/UW-EC/DS Courses/785/Capstone/Data/#R/IA2030MX" ) 
+
+# Import information and data for Survey Item 6-1.
+Item_6_1 <- read.csv( "IA2030MX_Q6-1_DC.csv" )
+Item_6_2 <- read.csv( "IA2030MX_Q6-2_DC.csv" )
+Item_6_3 <- read.csv( "IA2030MX_Q6-3_DC.csv" )
+Item_6_ANOVA <- read.csv( "IA2030MX_Q6_DC_ANOVA.csv" )
+
+
+
+```
+
+## Create a dataframe including only the sentiment scores of each Item.
+
+```{r}
+# 'Item_6_1' has the greatest length. Add 'NA' values to the absent rows of 'Item_6_2' and 'Item_6_3'.
+max_ln <- length( Item_6_1$Sent.Scale )
+
+# Combine the 'Item_6_1', 'Item_6_2', and 'Item_6_3' Sentiment Score rows.
+ss_6_df <- data.frame( I6_1 = c( Item_6_1$Sent.Scale ),
+                       I6_2 = c( Item_6_2$Sent.Scale, rep( NA, max_ln - length( Item_6_2$Sent.Scale ) ) ),
+                       I6_3 = c( Item_6_3$Sent.Scale, rep( NA, max_ln - length( Item_6_3$Sent.Scale ) ) ) )
+
+# Cast 'ss_6_df' as a matrix.
+ss_6_df_mat <- as.matrix( ss_6_df )
+
+# Test whether atomic vectors exist in 'ss_6_df_mat'.
+is_vector( ss_6_df_mat )
+
+```
+
+## Perform two-way ANOVA testing.
+
+```{r}
+# Perform two-way ANOVA testing.
+ss_6_anal_of_var <- aov( ï..Q6_1 ~ Q6_2 + Q6_3, data = Item_6_ANOVA )
+
+print( Item_6_ANOVA )
+
+```
+
+## Display the results.
+
+```{r}
+# Display two-way ANOVA results, Q6_1 versus Q6_2 and Q6_3.
+summary( ss_6_anal_of_var )
+```
+
